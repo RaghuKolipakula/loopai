@@ -67,24 +67,23 @@ export default {
                 }
 
                 // Fetch dynamic topic from KV
-                let topic = "DFW Family Events";
+                let topic = "Top Family Events in DFW";
                 if (env.LOOPAI_STORE) {
                     const storedTopic = await env.LOOPAI_STORE.get("CURRENT_TOPIC");
                     if (storedTopic) topic = storedTopic;
                 }
 
-                const systemPrompt = `You are a highly reliable and selective local event curator.
-The user wants you to curate events specifically for this topic/idea: "${topic}"
+                const systemPrompt = `You are a highly reliable AI curator.
+The user has provided the following prompt/topic: "${topic}"
 
-Your goal is to provide a list of 4 to 6 of the most trending, proven, reliable, and high-quality events happening currently or in the near future that match the topic EXACTLY.
-You must ONLY select events organized by reputable and high-class organizers.
-Output the response EXACTLY as a JSON object with an 'events' array containing objects with:
-- 'title' (string)
-- 'date' (string, e.g., 'This Weekend', 'Oct 15 - 20', 'Ongoing')
-- 'location' (string, specific venue or virtual link)
+Your goal is to provide a list of 4 to 6 high-quality results that perfectly match the user's prompt.
+Output the response EXACTLY as a JSON object with an 'items' array containing objects with:
+- 'title' (string, the name of the item/event/place/idea)
+- 'subtitle' (string, e.g., a date, a price, or a short sub-label)
+- 'detail' (string, e.g., a location, an author, or a specific detail)
 - 'description' (string, 2-3 sentences max, engaging and descriptive)
-- 'category' (string, e.g., 'STEM', 'Networking', 'Arts', 'Festival')
-- 'organizer' (string, name of the reputable organizer)
+- 'category' (string, e.g., a tag or genre)
+- 'footer' (string, e.g., an organizer, a rating, or an extra note)
 
 Do NOT include markdown formatting like \`\`\`json or \`\`\`. Just return the raw JSON object.`;
 
@@ -127,13 +126,13 @@ Do NOT include markdown formatting like \`\`\`json or \`\`\`. Just return the ra
                 // Strip markdown formatting if Gemini mistakenly included it
                 generatedText = generatedText.replace(/^```json/mi, '').replace(/```$/mi, '').trim();
                 
-                const parsedEvents = JSON.parse(generatedText);
+                const parsedData = JSON.parse(generatedText);
 
-                return new Response(JSON.stringify(parsedEvents), {
+                return new Response(JSON.stringify(parsedData), {
                     status: 200,
                     headers: { 
                         "Content-Type": "application/json",
-                        "Cache-Control": "max-age=300"
+                        "Cache-Control": "no-cache, no-store, must-revalidate"
                     }
                 });
 

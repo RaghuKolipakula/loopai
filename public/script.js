@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch(e) {
             console.error("Failed to fetch topic", e);
         }
-        fetchEvents();
+        fetchItems();
     }
 
     refreshBtn.addEventListener('click', () => {
@@ -35,10 +35,10 @@ document.addEventListener('DOMContentLoaded', () => {
             icon.style.transform = 'rotate(0deg)';
         }, 500);
 
-        fetchEvents();
+        fetchItems();
     });
 
-    async function fetchEvents() {
+    async function fetchItems() {
         // Update UI states
         eventsGrid.innerHTML = '';
         errorState.classList.add('hidden');
@@ -64,19 +64,19 @@ document.addEventListener('DOMContentLoaded', () => {
             
             loadingState.classList.add('hidden');
             
-            if (data.events && data.events.length > 0) {
-                renderEvents(data.events);
+            if (data.items && data.items.length > 0) {
+                renderItems(data.items);
             } else {
-                throw new Error('No events returned');
+                throw new Error('No items returned');
             }
         } catch (error) {
-            console.error('Error fetching events:', error);
+            console.error('Error fetching data:', error);
             loadingState.classList.add('hidden');
             
             // Display the exact error message to the user
             const errorMsgEl = errorState.querySelector('.error-msg');
             if (errorMsgEl) {
-                errorMsgEl.innerText = "Oops, unable to fetch events right now. " + error.message;
+                errorMsgEl.innerText = "Oops, unable to fetch results right now. " + error.message;
             }
             errorState.classList.remove('hidden');
         } finally {
@@ -85,8 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderEvents(events) {
-        events.forEach((event, index) => {
+    function renderItems(items) {
+        items.forEach((item, index) => {
             // Add a staggered animation delay
             const delay = index * 0.1;
             
@@ -100,20 +100,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             card.innerHTML = `
                 <div class="event-image" style="background: ${bgGradient}">
-                    <span class="event-category">${event.category || 'Family'}</span>
+                    <span class="event-category">${item.category || 'General'}</span>
                 </div>
                 <div class="event-content">
-                    <div class="event-date">${event.date || 'Upcoming'}</div>
-                    <h3 class="event-title">${event.title}</h3>
-                    <p class="event-desc">${event.description}</p>
+                    <div class="event-date" style="font-weight: 600; color: var(--primary);">${item.subtitle || ''}</div>
+                    <h3 class="event-title">${item.title}</h3>
+                    <p class="event-desc">${item.description}</p>
                     <div class="event-meta">
                         <div class="meta-item">
-                            <span class="meta-icon">📍</span>
-                            <span>${event.location}</span>
+                            <span>📌 ${item.detail || ''}</span>
                         </div>
                         <div class="meta-item">
-                            <span class="meta-icon">⭐</span>
-                            <span>Organizer: ${event.organizer}</span>
+                            <span>💡 ${item.footer || ''}</span>
                         </div>
                     </div>
                 </div>
