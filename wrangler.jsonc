@@ -1,14 +1,15 @@
 {
-  "name": "loopai",
-  "main": "src/index.js",
-  "compatibility_date": "2026-08-14",
-  "assets": {
-    "directory": "./public"
-  },
-  "kv_namespaces": [
-    {
-      "binding": "LOOPAI_STORE",
-      "id": "placeholder_id"
-    }
-  ]
+	"name": "loopai",
+	"main": "src/index.js",
+	"compatibility_date": "2026-08-14",
+	"assets": {
+		"directory": "./public"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "LOOPAI_STORE",
+			"id": "b4535afed15748e5a7e6254f1b99c196",
+			"remote": true
+		}
+	]
 }
