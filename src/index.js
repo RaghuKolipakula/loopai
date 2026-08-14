@@ -2,8 +2,61 @@ export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
 
-        // API Route handling
-        if (url.pathname === '/api/events') {
+        // --- GET /api/topic ---
+        // Returns the currently active topic
+        if (url.pathname === '/api/topic' && request.method === 'GET') {
+            try {
+                let topic = "DFW Family Events"; // Default
+                if (env.LOOPAI_STORE) {
+                    const storedTopic = await env.LOOPAI_STORE.get("CURRENT_TOPIC");
+                    if (storedTopic) topic = storedTopic;
+                }
+                return new Response(JSON.stringify({ topic }), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" }
+                });
+            } catch (error) {
+                return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+            }
+        }
+
+        // --- POST /api/topic ---
+        // Saves a new topic (protected by ADMIN_PASSWORD)
+        if (url.pathname === '/api/topic' && request.method === 'POST') {
+            try {
+                const body = await request.json();
+                const { topic, password } = body;
+
+                // Check Admin Password
+                const adminPassword = env.ADMIN_PASSWORD;
+                if (!adminPassword) {
+                    return new Response(JSON.stringify({ error: "ADMIN_PASSWORD is not configured in Cloudflare." }), { status: 500 });
+                }
+                if (password !== adminPassword) {
+                    return new Response(JSON.stringify({ error: "Invalid admin password." }), { status: 401 });
+                }
+                if (!topic || topic.trim() === "") {
+                    return new Response(JSON.stringify({ error: "Topic cannot be empty." }), { status: 400 });
+                }
+
+                if (!env.LOOPAI_STORE) {
+                    return new Response(JSON.stringify({ error: "LOOPAI_STORE KV namespace is not bound in Cloudflare." }), { status: 500 });
+                }
+
+                await env.LOOPAI_STORE.put("CURRENT_TOPIC", topic.trim());
+
+                return new Response(JSON.stringify({ success: true, topic: topic.trim() }), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" }
+                });
+            } catch (error) {
+                return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+            }
+        }
+
+        // --- GET /api/events ---
+        // Generates events based on the dynamic topic
+        if (url.pathname === '/api/events' && request.method === 'GET') {
             try {
                 const apiKey = env.GEMINI_API_KEY;
                 if (!apiKey) {
@@ -13,15 +66,24 @@ export default {
                     });
                 }
 
-                const systemPrompt = `You are a highly reliable and selective local event curator for the Dallas-Fort Worth (DFW) area, specializing in family-friendly activities. 
-Your goal is to provide a list of 4 to 6 of the most trending, proven, reliable, and high-quality events happening currently or in the near future in DFW. 
+                // Fetch dynamic topic from KV
+                let topic = "DFW Family Events";
+                if (env.LOOPAI_STORE) {
+                    const storedTopic = await env.LOOPAI_STORE.get("CURRENT_TOPIC");
+                    if (storedTopic) topic = storedTopic;
+                }
+
+                const systemPrompt = `You are a highly reliable and selective local event curator.
+The user wants you to curate events specifically for this topic/idea: "${topic}"
+
+Your goal is to provide a list of 4 to 6 of the most trending, proven, reliable, and high-quality events happening currently or in the near future that match the topic EXACTLY.
 You must ONLY select events organized by reputable and high-class organizers.
 Output the response EXACTLY as a JSON object with an 'events' array containing objects with:
 - 'title' (string)
 - 'date' (string, e.g., 'This Weekend', 'Oct 15 - 20', 'Ongoing')
-- 'location' (string, e.g., 'Fort Worth Museum of Science', 'Klyde Warren Park')
+- 'location' (string, specific venue or virtual link)
 - 'description' (string, 2-3 sentences max, engaging and descriptive)
-- 'category' (string, e.g., 'STEM', 'Outdoors', 'Arts', 'Festival')
+- 'category' (string, e.g., 'STEM', 'Networking', 'Arts', 'Festival')
 - 'organizer' (string, name of the reputable organizer)
 
 Do NOT include markdown formatting like \`\`\`json or \`\`\`. Just return the raw JSON object.`;
@@ -53,7 +115,7 @@ Do NOT include markdown formatting like \`\`\`json or \`\`\`. Just return the ra
                 if (!response.ok) {
                     const errorData = await response.text();
                     console.error("Gemini API Error:", errorData);
-                    return new Response(JSON.stringify({ error: "Failed to fetch from Gemini API" }), {
+                    return new Response(JSON.stringify({ error: "Failed to fetch from Gemini API: " + errorData }), {
                         status: 502,
                         headers: { "Content-Type": "application/json" }
                     });
@@ -84,10 +146,7 @@ Do NOT include markdown formatting like \`\`\`json or \`\`\`. Just return the ra
             }
         }
 
-        // Otherwise, let Cloudflare Workers static assets feature serve the public/ folder files
-        // By returning a 404 here or passing through, if the asset engine is bound, it intercepts earlier,
-        // but if it hits the worker, we can just return a 404 for unhandled routes, because static assets 
-        // are served directly by the asset binding when configured.
+        // Static Assets fallback
         return new Response("Not found", { status: 404 });
     }
 }

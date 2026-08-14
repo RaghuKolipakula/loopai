@@ -3,9 +3,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const eventsGrid = document.getElementById('events-grid');
     const loadingState = document.getElementById('loading-state');
     const errorState = document.getElementById('error-state');
+    const topicTitle = document.getElementById('topic-title');
 
     // Fetch initially
-    fetchEvents();
+    initPage();
+
+    async function initPage() {
+        try {
+            const topicRes = await fetch('/api/topic');
+            if (topicRes.ok) {
+                const data = await topicRes.json();
+                if (data.topic) {
+                    topicTitle.innerText = data.topic;
+                }
+            }
+        } catch(e) {
+            console.error("Failed to fetch topic", e);
+        }
+        fetchEvents();
+    }
 
     refreshBtn.addEventListener('click', () => {
         // Add a slight rotation animation to the icon
