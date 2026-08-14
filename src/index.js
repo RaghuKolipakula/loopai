@@ -60,7 +60,10 @@ Do NOT include markdown formatting like \`\`\`json or \`\`\`. Just return the ra
                 }
 
                 const data = await response.json();
-                const generatedText = data.candidates[0].content.parts[0].text;
+                let generatedText = data.candidates[0].content.parts[0].text;
+                
+                // Strip markdown formatting if Gemini mistakenly included it
+                generatedText = generatedText.replace(/^```json/mi, '').replace(/```$/mi, '').trim();
                 
                 const parsedEvents = JSON.parse(generatedText);
 

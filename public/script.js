@@ -34,7 +34,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/events');
             
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                let errorDetails = '';
+                try {
+                    const errorJson = await response.json();
+                    errorDetails = errorJson.error || response.statusText;
+                } catch(e) {
+                    errorDetails = await response.text();
+                }
+                throw new Error(`Server Error: ${errorDetails}`);
             }
             
             const data = await response.json();
@@ -49,6 +56,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error fetching events:', error);
             loadingState.classList.add('hidden');
+            
+            // Display the exact error message to the user
+            const errorMsgEl = errorState.querySelector('.error-msg');
+            if (errorMsgEl) {
+                errorMsgEl.innerText = "Oops, unable to fetch events right now. " + error.message;
+            }
             errorState.classList.remove('hidden');
         } finally {
             refreshBtn.disabled = false;
