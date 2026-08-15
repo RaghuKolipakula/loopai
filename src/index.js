@@ -9,63 +9,152 @@ export default {
         const pathParts = url.pathname.split('/').filter(Boolean);
 
         // ==========================================
-        // /api/evaluate Endpoint for Opportunity Builder
+        // /api/opportunities Endpoint for History
         // ==========================================
-        if (pathParts[0] === 'api' && pathParts[1] === 'evaluate' && request.method === 'POST') {
-            try {
-                const apiKey = env.GEMINI_API_KEY;
-                if (!apiKey) return error("Gemini API key is not configured", 500);
+        if (pathParts[0] === 'api' && pathParts[1] === 'opportunities') {
+            const db = env.DB;
+            if (!db) return error("D1 Database 'DB' is not bound", 500);
 
-                const body = await request.json();
-                
-                const systemPrompt = `You are a panel of three expert personas evaluating a money-making opportunity the user describes. Your job is to stress-test the idea from multiple angles — NOT to talk each other into a "yes." Every opportunity carries real risk of loss, including total loss of capital.
+            // GET /api/opportunities (List)
+            if (request.method === 'GET' && pathParts.length === 2) {
+                try {
+                    const { results } = await db.prepare("SELECT id, opportunityType, niche, score, createdAt FROM opportunities ORDER BY createdAt DESC").all();
+                    return json(results);
+                } catch (e) {
+                    return error(e.message);
+                }
+            }
 
-PERSONAS:
-1. THE ENTREPRENEUR — built and sold real ventures, thinks in terms of execution, unit economics, timing, and whether this can actually be done with realistic resources. Cares about practical feasibility over theory.
-2. THE PRAGMATIST — grounded in current market/economic/regulatory conditions as they actually are right now, not how they were or how they're "supposed to" work. Calls out when the idea relies on outdated assumptions or a regime that's already shifted.
-3. THE CRITIC — actively looking for reasons this fails. Assumes the opportunity is oversold and highlights hidden risks and downside.
+            // GET /api/opportunities/:id (Single detail)
+            if (request.method === 'GET' && pathParts.length === 3) {
+                try {
+                    const id = pathParts[2];
+                    const data = await db.prepare("SELECT * FROM opportunities WHERE id = ?").bind(id).first();
+                    if (!data) return error("Not found", 404);
+                    // Parse JSON fields
+                    data.realityInputs = JSON.parse(data.realityInputs);
+                    data.panelOutput = JSON.parse(data.panelOutput);
+                    data.risks = JSON.parse(data.risks);
+                    return json(data);
+                } catch (e) {
+                    return error(e.message);
+                }
+            }
+
+            // POST /api/opportunities (Evaluate and Save)
+            if (request.method === 'POST' && pathParts.length === 2) {
+                try {
+                    const apiKey = env.GEMINI_API_KEY;
+                    if (!apiKey) return error("Gemini API key is not configured", 500);
+
+                    const body = await request.json();
+                    const { opportunityType, niche, realityInputs } = body;
+                    
+                    const systemPrompt = `You are a panel of four expert personas evaluating a money-making opportunity the user describes. Your job is to stress-test the idea from multiple angles — NOT to talk each other into a "yes." Every opportunity carries real risk of loss, including total loss of capital.
+You have access to Google Search. You MUST search for the niche's market size, typical pricing, challenges, and regulations before evaluating. Use the facts you find to ground your evaluation.
 
 INPUT:
-Opportunity: ${body.opportunity}
-Features: ${body.features.join(', ')}
-Custom Notes: ${body.customText}
+Opportunity Type: ${opportunityType}
+Niche: ${niche || 'General'}
+Reality Inputs:
+- Capital: $${realityInputs.capital}
+- Hours/week: ${realityInputs.hoursPerWeek}
+- Skills: ${realityInputs.skills}
+- Audience Size: ${realityInputs.audienceSize}
+- Monetization Model: ${realityInputs.monetization}
+- Timeline: ${realityInputs.timeline}
+- Geography: ${realityInputs.geography || 'N/A'}
 
-Provide an evaluation from each persona. 
+PERSONAS:
+1. THE ENTREPRENEUR — CAC/LTV, sales motion, realistic customer acquisition given the person's actual audience/capital.
+2. THE PRAGMATIST — macro conditions, regulatory/legal exposure, timing. Focuses on the facts found via search.
+3. THE CRITIC — credibility gap, why generic playbooks fail in this niche, whether the person's actual skills match what the niche needs.
+4. THE OPERATOR — if the opportunity passes, what the first 30/60/90 days should look like.
 
-After the three personas have spoken, provide a "FINAL VERDICT & SMART TWIST":
-- Synthesize the evaluations into a final recommendation.
-- Propose a "smart twist" or pivot that addresses the critic's concerns and makes the opportunity significantly more viable or unique.
+EVALUATION FORMAT:
+Provide the evaluation for each persona, clearly labeled.
+Distinguish verified facts (from search) from reasoned inference.
 
-Keep it concise, brutal, and honest. Never use certainty language ('will', 'guaranteed', 'sure thing').`;
+After the personas, provide a VERDICT BLOCK in this exact JSON format (do not wrap in markdown code blocks, just raw JSON at the very end of your response after the text):
+{"score": [1-10], "risks": ["risk 1", "risk 2", "risk 3"], "nextStep": "concrete micro-step"}
+`;
 
-                // Call Gemini API
-                const requestBody = {
-                    contents: [{ parts: [{ text: systemPrompt }] }],
-                    generationConfig: { temperature: 0.7, topK: 40, topP: 0.95 }
-                };
+                    // Call Gemini API with Google Search grounding
+                    const requestBody = {
+                        contents: [{ parts: [{ text: systemPrompt }] }],
+                        generationConfig: { temperature: 0.7, topK: 40, topP: 0.95 },
+                        tools: [{ googleSearch: {} }] // Enable Google Search
+                    };
 
-                const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
-                const aiRes = await fetch(geminiUrl, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(requestBody)
-                });
+                    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+                    const aiRes = await fetch(geminiUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(requestBody)
+                    });
 
-                if (!aiRes.ok) {
-                    const errText = await aiRes.text();
-                    return error("Gemini API Error: " + errText, 502);
+                    if (!aiRes.ok) {
+                        const errText = await aiRes.text();
+                        return error("Gemini API Error: " + errText, 502);
+                    }
+
+                    const aiData = await aiRes.json();
+                    if (!aiData.candidates || aiData.candidates.length === 0) {
+                        return error("Gemini API returned no content.", 500);
+                    }
+
+                    const resultText = aiData.candidates[0].content.parts[0].text;
+                    
+                    // Parse the JSON block at the end
+                    let score = 0, risks = [], nextStep = "";
+                    let panelOutput = resultText;
+                    
+                    const jsonMatch = resultText.match(/\{[\s\S]*"score"[\s\S]*\}/);
+                    if (jsonMatch) {
+                        try {
+                            const parsed = JSON.parse(jsonMatch[0]);
+                            score = parsed.score || 0;
+                            risks = parsed.risks || [];
+                            nextStep = parsed.nextStep || "";
+                            // Remove the JSON from the text
+                            panelOutput = resultText.replace(jsonMatch[0], '').trim();
+                        } catch (e) {
+                            console.error("Failed to parse verdict JSON", e);
+                        }
+                    }
+
+                    const id = crypto.randomUUID();
+                    const now = new Date().toISOString();
+                    
+                    await db.prepare(
+                        "INSERT INTO opportunities (id, opportunityType, niche, realityInputs, panelOutput, score, risks, nextStep, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    ).bind(
+                        id, 
+                        opportunityType, 
+                        niche, 
+                        JSON.stringify(realityInputs), 
+                        panelOutput, 
+                        score, 
+                        JSON.stringify(risks), 
+                        nextStep, 
+                        now
+                    ).run();
+
+                    return json({
+                        id,
+                        opportunityType,
+                        niche,
+                        realityInputs,
+                        panelOutput,
+                        score,
+                        risks,
+                        nextStep,
+                        createdAt: now
+                    });
+
+                } catch (e) {
+                    return error(e.message);
                 }
-
-                const aiData = await aiRes.json();
-                if (!aiData.candidates || aiData.candidates.length === 0) {
-                    return error("Gemini API returned no content.", 500);
-                }
-
-                const resultText = aiData.candidates[0].content.parts[0].text;
-                return json({ result: resultText });
-
-            } catch (e) {
-                return error(e.message);
             }
         }
 
