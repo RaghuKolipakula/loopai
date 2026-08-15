@@ -9,6 +9,50 @@ export default {
         const pathParts = url.pathname.split('/').filter(Boolean);
 
         // ==========================================
+        // /api/marketdata Endpoint for Historical Data
+        // ==========================================
+        if (pathParts[0] === 'api' && pathParts[1] === 'marketdata') {
+            if (request.method === 'GET') {
+                try {
+                    const symbol = new URL(request.url).searchParams.get('symbol') || 'SPY';
+                    const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=10y&interval=1d`;
+                    const yfRes = await fetch(yfUrl, {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                        }
+                    });
+                    
+                    if (!yfRes.ok) {
+                        return error(`Yahoo Finance error: ${yfRes.statusText}`, 502);
+                    }
+                    
+                    const data = await yfRes.json();
+                    
+                    // Extract close prices and timestamps
+                    const result = data.chart.result[0];
+                    const timestamps = result.timestamp;
+                    const closes = result.indicators.quote[0].close;
+                    
+                    // Filter out nulls
+                    const validData = [];
+                    for(let i=0; i<closes.length; i++) {
+                        if (closes[i] !== null) {
+                            validData.push({
+                                time: timestamps[i],
+                                close: closes[i]
+                            });
+                        }
+                    }
+                    
+                    return json({ symbol, data: validData });
+                } catch (e) {
+                    return error(e.message);
+                }
+            }
+            return error("Method not allowed", 405);
+        }
+
+        // ==========================================
         // /api/opportunities Endpoint for History
         // ==========================================
         if (pathParts[0] === 'api' && pathParts[1] === 'opportunities') {
