@@ -12,36 +12,7 @@ export default {
         // /api/opportunities Endpoint for History
         // ==========================================
         if (pathParts[0] === 'api' && pathParts[1] === 'opportunities') {
-            const db = env.DB;
-            if (!db) return error("D1 Database 'DB' is not bound", 500);
-
-            // GET /api/opportunities (List)
-            if (request.method === 'GET' && pathParts.length === 2) {
-                try {
-                    const { results } = await db.prepare("SELECT id, opportunityType, niche, score, createdAt FROM opportunities ORDER BY createdAt DESC").all();
-                    return json(results);
-                } catch (e) {
-                    return error(e.message);
-                }
-            }
-
-            // GET /api/opportunities/:id (Single detail)
-            if (request.method === 'GET' && pathParts.length === 3) {
-                try {
-                    const id = pathParts[2];
-                    const data = await db.prepare("SELECT * FROM opportunities WHERE id = ?").bind(id).first();
-                    if (!data) return error("Not found", 404);
-                    // Parse JSON fields
-                    data.realityInputs = JSON.parse(data.realityInputs);
-                    data.panelOutput = JSON.parse(data.panelOutput);
-                    data.risks = JSON.parse(data.risks);
-                    return json(data);
-                } catch (e) {
-                    return error(e.message);
-                }
-            }
-
-            // POST /api/opportunities (Evaluate and Save)
+            // POST /api/opportunities (Evaluate and Return Statelessly)
             if (request.method === 'POST' && pathParts.length === 2) {
                 try {
                     const apiKey = env.GEMINI_API_KEY;
@@ -126,20 +97,6 @@ After the personas, provide a VERDICT BLOCK in this exact JSON format (do not wr
                     const id = crypto.randomUUID();
                     const now = new Date().toISOString();
                     
-                    await db.prepare(
-                        "INSERT INTO opportunities (id, opportunityType, niche, realityInputs, panelOutput, score, risks, nextStep, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                    ).bind(
-                        id, 
-                        opportunityType, 
-                        niche, 
-                        JSON.stringify(realityInputs), 
-                        panelOutput, 
-                        score, 
-                        JSON.stringify(risks), 
-                        nextStep, 
-                        now
-                    ).run();
-
                     return json({
                         id,
                         opportunityType,
@@ -156,6 +113,7 @@ After the personas, provide a VERDICT BLOCK in this exact JSON format (do not wr
                     return error(e.message);
                 }
             }
+            return error("Method not allowed", 405);
         }
 
         // ==========================================

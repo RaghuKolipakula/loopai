@@ -74,27 +74,21 @@ export default function OpportunityValidator() {
     fetchHistory();
   }, []);
 
-  const fetchHistory = async () => {
+  const fetchHistory = () => {
     try {
-      const res = await fetch('/api/opportunities');
-      if (res.ok) {
-        const data = await res.json();
-        setHistory(data);
+      const local = localStorage.getItem('loopai_history');
+      if (local) {
+        setHistory(JSON.parse(local));
       }
     } catch (e) {
-      console.error("Failed to fetch history", e);
+      console.error("Failed to parse local history", e);
     }
   };
 
-  const loadSubmission = async (id: string) => {
-    try {
-      const res = await fetch(`/api/opportunities/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSelectedSubmission(data);
-      }
-    } catch (e) {
-      console.error("Failed to load submission", e);
+  const loadSubmission = (id: string) => {
+    const sub = history.find(h => h.id === id);
+    if (sub) {
+      setSelectedSubmission(sub);
     }
   };
 
@@ -121,7 +115,9 @@ export default function OpportunityValidator() {
       if (!res.ok) throw new Error(data.error || 'Failed to evaluate');
 
       setSelectedSubmission(data);
-      setHistory([data, ...history]);
+      const newHistory = [data, ...history];
+      setHistory(newHistory);
+      localStorage.setItem('loopai_history', JSON.stringify(newHistory));
     } catch (err: any) {
       setError(err.message);
     } finally {
