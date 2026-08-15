@@ -30,7 +30,13 @@ Opportunity: ${body.opportunity}
 Features: ${body.features.join(', ')}
 Custom Notes: ${body.customText}
 
-Provide an evaluation from each persona. Keep it concise, brutal, and honest. Never use certainty language ('will', 'guaranteed', 'sure thing').`;
+Provide an evaluation from each persona. 
+
+After the three personas have spoken, provide a "FINAL VERDICT & SMART TWIST":
+- Synthesize the evaluations into a final recommendation.
+- Propose a "smart twist" or pivot that addresses the critic's concerns and makes the opportunity significantly more viable or unique.
+
+Keep it concise, brutal, and honest. Never use certainty language ('will', 'guaranteed', 'sure thing').`;
 
                 // Call Gemini API
                 const requestBody = {
