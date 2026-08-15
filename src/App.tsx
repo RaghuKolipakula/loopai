@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import OpportunityValidator from './OpportunityValidator';
 import ZeroDTEDashboard from './ZeroDTEDashboard';
-import { LayoutDashboard, TrendingUp, ArrowLeft } from 'lucide-react';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<'home' | 'validator' | '0dte'>('home');
@@ -13,7 +12,7 @@ export default function App() {
           onClick={() => setCurrentPage('home')}
           className="absolute top-4 left-4 z-50 flex items-center gap-2 bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow-sm text-sm font-semibold text-slate-700 hover:text-slate-900 border border-slate-200 transition-all hover:shadow-md"
         >
-          <ArrowLeft size={16} /> Back to Hub
+          ⬅️ Back to Hub
         </button>
         <OpportunityValidator />
       </div>
@@ -27,7 +26,7 @@ export default function App() {
           onClick={() => setCurrentPage('home')}
           className="absolute top-4 left-4 z-50 flex items-center gap-2 bg-slate-900/80 backdrop-blur px-4 py-1.5 rounded-full shadow-sm text-xs font-semibold text-slate-400 hover:text-slate-200 border border-slate-700 transition-all hover:bg-slate-800"
         >
-          <ArrowLeft size={14} /> Exit Cockpit
+          ⬅️ Exit Cockpit
         </button>
         <ZeroDTEDashboard />
       </div>
@@ -51,8 +50,8 @@ export default function App() {
             onClick={() => setCurrentPage('validator')}
             className="group cursor-pointer bg-white rounded-2xl p-8 shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-200 transition-all duration-300 flex flex-col"
           >
-            <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 text-blue-600 group-hover:scale-110 transition-transform duration-300">
-              <LayoutDashboard size={32} />
+            <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 text-2xl group-hover:scale-110 transition-transform duration-300">
+              📋
             </div>
             <h2 className="text-2xl font-bold text-slate-900 mb-3">Opportunity Validator</h2>
             <p className="text-slate-600 mb-6 flex-1">
@@ -68,8 +67,8 @@ export default function App() {
             onClick={() => setCurrentPage('0dte')}
             className="group cursor-pointer bg-slate-900 rounded-2xl p-8 shadow-sm border border-slate-800 hover:shadow-2xl hover:border-indigo-500 transition-all duration-300 flex flex-col"
           >
-            <div className="bg-indigo-900/50 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 text-indigo-400 group-hover:scale-110 transition-transform duration-300">
-              <TrendingUp size={32} />
+            <div className="bg-indigo-900/50 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 text-2xl group-hover:scale-110 transition-transform duration-300">
+              📈
             </div>
             <h2 className="text-2xl font-bold text-white mb-3">0DTE Options Cockpit</h2>
             <p className="text-slate-400 mb-6 flex-1">

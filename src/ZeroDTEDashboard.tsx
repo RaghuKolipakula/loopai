@@ -1,13 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { mockStream, MarketDataState, OptionChainStrike } from './utils/mockDataStream';
-import { createChart } from 'lightweight-charts';
-import { Activity, Clock, ShieldAlert, Zap, Layers, Calculator } from 'lucide-react';
+import { mockStream, MarketDataState } from './utils/mockDataStream';
 
 export default function ZeroDTEDashboard() {
   const [data, setData] = useState<MarketDataState | null>(null);
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<any>(null);
-  const lineSeriesRef = useRef<any>(null);
+  
+  // Keep history of spot prices for our simple SVG chart
+  const [priceHistory, setPriceHistory] = useState<number[]>([]);
 
   // Position Simulator State
   const [openPositions, setOpenPositions] = useState<any[]>([]);
@@ -20,14 +18,11 @@ export default function ZeroDTEDashboard() {
     mockStream.start();
     const unsubscribe = mockStream.subscribe((newData) => {
       setData(newData);
-      
-      // Update chart
-      if (lineSeriesRef.current && newData) {
-        lineSeriesRef.current.update({
-          time: (newData.timestamp / 1000) as any,
-          value: newData.spot
-        });
-      }
+      setPriceHistory(prev => {
+        const next = [...prev, newData.spot];
+        if (next.length > 50) return next.slice(next.length - 50); // Keep last 50 points
+        return next;
+      });
     });
 
     return () => {
@@ -36,36 +31,7 @@ export default function ZeroDTEDashboard() {
     };
   }, []);
 
-  useEffect(() => {
-    if (chartContainerRef.current && !chartRef.current) {
-      const chart = createChart(chartContainerRef.current, {
-        width: chartContainerRef.current.clientWidth,
-        height: 200,
-        layout: {
-          background: { color: '#020617' }, // slate-950
-          textColor: '#94a3b8',
-        },
-        grid: {
-          vertLines: { color: '#1e293b' },
-          horzLines: { color: '#1e293b' },
-        },
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: true,
-        },
-      });
-
-      const lineSeries = chart.addLineSeries({
-        color: '#3b82f6',
-        lineWidth: 2,
-      });
-
-      chartRef.current = chart;
-      lineSeriesRef.current = lineSeries;
-    }
-  }, []);
-
-  if (!data) return <div className="p-10 text-white font-mono flex items-center gap-2"><Zap className="animate-spin text-blue-500" /> Connecting to licensed feed...</div>;
+  if (!data) return <div className="p-10 text-white font-mono flex items-center gap-2">Connecting to licensed feed...</div>;
 
   // Calculate Expected Move (ATM Straddle)
   // Find ATM strike
@@ -127,13 +93,32 @@ export default function ZeroDTEDashboard() {
           
           {/* Price Chart */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg shrink-0">
-            <h3 className="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2"><Activity size={16} /> Live Price Action</h3>
-            <div ref={chartContainerRef} className="w-full h-[200px]" />
+            <h3 className="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2">📈 Live Price Action</h3>
+            <div className="w-full h-[200px] border border-slate-800 rounded bg-slate-950 relative overflow-hidden">
+               {/* Simple SVG Chart */}
+               <svg className="w-full h-full" viewBox="0 0 500 200" preserveAspectRatio="none">
+                 {priceHistory.length > 1 && (
+                   <polyline
+                     fill="none"
+                     stroke="#3b82f6"
+                     strokeWidth="2"
+                     points={priceHistory.map((p, i) => {
+                       const min = Math.min(...priceHistory);
+                       const max = Math.max(...priceHistory);
+                       const range = max === min ? 1 : max - min;
+                       const x = (i / (priceHistory.length - 1)) * 500;
+                       const y = 200 - (((p - min) / range) * 160 + 20); // 20px padding
+                       return `${x},${y}`;
+                     }).join(' ')}
+                   />
+                 )}
+               </svg>
+            </div>
           </div>
 
           {/* GEX Map */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex-1 overflow-y-auto">
-            <h3 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2"><Layers size={16} /> Gamma Exposure (GEX) Map</h3>
+            <h3 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2">📊 Gamma Exposure (GEX) Map</h3>
             <div className="flex flex-col gap-1 text-xs">
               {sortedStrikes.map(strike => {
                 const gex = gexByStrike[strike];
@@ -179,7 +164,7 @@ export default function ZeroDTEDashboard() {
           
           {/* Position & Risk */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg shrink-0">
-            <h3 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2"><ShieldAlert size={16} /> Position Risk</h3>
+            <h3 className="text-sm font-bold text-slate-300 mb-4 flex items-center gap-2">🛡️ Position Risk</h3>
             {openPositions.length === 0 ? (
               <div className="text-sm text-slate-500 italic p-4 bg-slate-950 rounded border border-dashed border-slate-700 text-center">
                 No active positions. Open trades from the chain below.
@@ -216,7 +201,7 @@ export default function ZeroDTEDashboard() {
 
           {/* Scenario Simulator */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg shrink-0">
-             <h3 className="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2"><Calculator size={16} /> Scenario Simulator</h3>
+             <h3 className="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2">🧮 Scenario Simulator</h3>
              <div className="flex gap-2 mb-2">
                {[-1, -0.5, 0, 0.5, 1].map(pct => (
                  <button 
@@ -236,7 +221,7 @@ export default function ZeroDTEDashboard() {
           {/* Mini Chain */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex-1 overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2"><Clock size={16} /> 0DTE Chain (Live Theta)</h3>
+              <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">⏱️ 0DTE Chain (Live Theta)</h3>
             </div>
             
             <table className="w-full text-xs text-right">
