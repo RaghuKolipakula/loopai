@@ -1,12 +1,23 @@
 {
   "name": "loopai",
   "version": "1.0.0",
-  "description": "DFW Family Events",
+  "description": "Opportunity Builder",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "dev": "vite",
+    "build": "vite build",
+    "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.26",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3",
+    "vite": "^4.5.14",
     "wrangler": "^3.0.0"
   }
 }
