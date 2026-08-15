@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 type Opportunity = {
   id: string;
@@ -56,6 +56,11 @@ const OPPORTUNITIES: Opportunity[] = [
     id: 'local-service',
     label: 'Local Service Business (via online booking)',
     defaultFeatures: ['Service Area Map', 'Quote Request Form', 'Before & After Gallery', 'Online Booking System']
+  },
+  {
+    id: 'custom',
+    label: 'Custom Opportunity...',
+    defaultFeatures: []
   }
 ];
 
@@ -67,13 +72,17 @@ type PreviewData = {
 
 export default function App() {
   const [selectedOppId, setSelectedOppId] = useState<string>('');
+  const [customOppName, setCustomOppName] = useState<string>('');
   const [checkedFeatures, setCheckedFeatures] = useState<Set<string>>(new Set());
-  const [customText, setCustomText] = useState<string>('{{CUSTOM_SENTENCE}}');
+  const [customText, setCustomText] = useState<string>('');
   const [preview, setPreview] = useState<PreviewData | null>({
     opportunityLabel: '{{OPPORTUNITY}}',
     features: ['{{FEATURES}}'],
     customText: '{{CUSTOM_SENTENCE}}'
   });
+  
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluationResult, setEvaluationResult] = useState<string | null>(null);
 
   const handleOppChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const oppId = e.target.value;
@@ -102,14 +111,55 @@ export default function App() {
   };
 
   const handleGenerate = () => {
-    const opp = OPPORTUNITIES.find(o => o.id === selectedOppId);
-    if (!opp) return;
+    let oppLabel = '';
+    if (selectedOppId === 'custom') {
+      oppLabel = customOppName || 'Custom Opportunity';
+    } else {
+      const opp = OPPORTUNITIES.find(o => o.id === selectedOppId);
+      if (opp) oppLabel = opp.label;
+    }
 
-    setPreview({
-      opportunityLabel: opp.label,
-      features: Array.from(checkedFeatures),
-      customText: customText
-    });
+    if (!oppLabel) return;
+
+    // Momentarily clear preview to make the update feel more responsive if they click multiple times
+    setPreview(null);
+    setEvaluationResult(null); // Clear previous evaluation
+    
+    setTimeout(() => {
+      setPreview({
+        opportunityLabel: oppLabel,
+        features: Array.from(checkedFeatures),
+        customText: customText
+      });
+    }, 50);
+  };
+
+  const handleSubmitToGemini = async () => {
+    if (!preview) return;
+    
+    setIsEvaluating(true);
+    setEvaluationResult(null);
+    
+    try {
+      const res = await fetch('/api/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          opportunity: preview.opportunityLabel,
+          features: preview.features,
+          customText: preview.customText
+        })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch evaluation');
+      
+      setEvaluationResult(data.result);
+    } catch (err: any) {
+      setEvaluationResult('Error: ' + err.message);
+    } finally {
+      setIsEvaluating(false);
+    }
   };
 
   const selectedOpp = OPPORTUNITIES.find(o => o.id === selectedOppId);
@@ -140,8 +190,25 @@ export default function App() {
             </select>
           </div>
 
+          {/* Custom Opportunity Input */}
+          {selectedOppId === 'custom' && (
+             <div>
+               <label htmlFor="custom-opp" className="block text-sm font-medium text-gray-700 mb-2">
+                 Custom Opportunity Name
+               </label>
+               <input
+                 type="text"
+                 id="custom-opp"
+                 value={customOppName}
+                 onChange={(e) => setCustomOppName(e.target.value)}
+                 placeholder="Enter your custom idea..."
+                 className="w-full bg-white border border-gray-300 rounded-md py-2 px-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+               />
+             </div>
+          )}
+
           {/* 2. Feature Checklist */}
-          {selectedOpp && (
+          {selectedOpp && selectedOpp.id !== 'custom' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Features & Modules
@@ -181,12 +248,12 @@ export default function App() {
           <div>
             <button
               onClick={handleGenerate}
-              disabled={!selectedOppId}
+              disabled={!selectedOppId || (selectedOppId === 'custom' && !customOppName)}
               className={`w-full py-3 px-4 rounded-md font-semibold text-white transition-colors
-                ${selectedOppId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}
+                ${(!selectedOppId || (selectedOppId === 'custom' && !customOppName)) ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}
               `}
             >
-              Generate
+              Generate Preview
             </button>
           </div>
         </div>
@@ -194,9 +261,18 @@ export default function App() {
 
       {/* Preview Panel */}
       {preview && (
-        <div className="max-w-3xl w-full bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+        <div className="max-w-3xl w-full bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-8">
+          <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
             <h2 className="text-lg font-semibold text-gray-900">Live Preview</h2>
+            <button 
+              onClick={handleSubmitToGemini}
+              disabled={isEvaluating}
+              className={`py-1.5 px-4 rounded-md text-sm font-semibold text-white transition-colors
+                ${isEvaluating ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}
+              `}
+            >
+              {isEvaluating ? 'Evaluating...' : 'Submit to Gemini (Agents Panel)'}
+            </button>
           </div>
           <div className="p-6 md:p-8 space-y-6">
             <div>
@@ -204,9 +280,9 @@ export default function App() {
               <p className="text-xl font-bold text-gray-900">{preview.opportunityLabel}</p>
             </div>
 
-            <div>
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Included Features</h3>
-              {preview.features.length > 0 ? (
+            {preview.features.length > 0 && (
+              <div>
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Included Features</h3>
                 <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {preview.features.map(feature => (
                     <li key={feature} className="flex items-start text-gray-700 text-sm">
@@ -217,10 +293,8 @@ export default function App() {
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <p className="text-gray-500 italic text-sm">No features selected.</p>
-              )}
-            </div>
+              </div>
+            )}
 
             {preview.customText && (
               <div>
@@ -229,6 +303,18 @@ export default function App() {
                   {preview.customText}
                 </div>
               </div>
+            )}
+            
+            {/* Gemini Evaluation Result */}
+            {evaluationResult && (
+               <div className="mt-8 border-t border-gray-200 pt-6">
+                 <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-4 flex items-center">
+                    <span className="mr-2">🤖</span> Gemini Expert Panel Evaluation
+                 </h3>
+                 <div className="prose prose-sm max-w-none text-gray-700 bg-gray-50 p-6 rounded-md border border-gray-200 whitespace-pre-wrap">
+                    {evaluationResult}
+                 </div>
+               </div>
             )}
           </div>
         </div>
