@@ -4,6 +4,7 @@ import {
   findTailHedge, 
   calculateRoll, 
   MockDataProvider, 
+  MassiveDataProvider,
   CampaignState 
 } from './Plan1Engine';
 
@@ -11,6 +12,8 @@ export default function Plan1() {
   const [loading, setLoading] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [campaign, setCampaign] = useState<CampaignState | null>(null);
+  const [useMassiveApi, setUseMassiveApi] = useState(false);
+  const [apiKey, setApiKey] = useState('');
 
   const addLog = (msg: string) => {
     setLog(prev => [...prev, msg]);
@@ -21,9 +24,18 @@ export default function Plan1() {
     setLog([]);
     setCampaign(null);
     try {
-      const provider = new MockDataProvider();
+      let provider;
+      if (useMassiveApi) {
+        if (!apiKey) {
+          throw new Error('Please enter a Massive.com API Key');
+        }
+        provider = new MassiveDataProvider(apiKey);
+        addLog('Fetching live option chain from Massive.com API...');
+      } else {
+        provider = new MockDataProvider();
+        addLog('Fetching mock option chain from MockDataProvider...');
+      }
       
-      addLog('Fetching option chain from MockDataProvider...');
       const chain = await provider.fetchOptionChain('SPY');
       addLog(`Spot price: $${(chain.spotPrice / 100).toFixed(2)}`);
 
@@ -31,6 +43,7 @@ export default function Plan1() {
       const entry = findEntrySpread(chain);
       if (!entry) {
         addLog('❌ Could not find valid entry spread meeting strict 14-21 DTE and credit criteria.');
+        setLoading(false);
         return;
       }
       addLog(`✅ Found Entry Spread: Sell ${entry.shortPut.strike/100}P, Buy ${entry.longPut.strike/100}P (Exp: ${entry.shortPut.expiration})`);
@@ -98,24 +111,48 @@ export default function Plan1() {
           A quantitative options architect that filters chains, prices strict 14-21 DTE $10-wide put credit spreads, calculates 20% budget 90-120 DTE tail hedges, and enforces strict credit-positive rolling rules.
         </p>
 
-        <div className="flex gap-4 mb-8">
+        <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 mb-8 shadow-xl flex flex-col sm:flex-row gap-6 items-start sm:items-end">
+          <div className="flex-1 w-full">
+            <label className="flex items-center gap-2 text-sm font-bold text-white mb-2 cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={useMassiveApi} 
+                onChange={(e) => setUseMassiveApi(e.target.checked)}
+                className="w-4 h-4 text-emerald-500 bg-slate-800 border-slate-700 rounded focus:ring-emerald-500 focus:ring-2"
+              />
+              Use Live massive.com (Polygon) API
+            </label>
+            {useMassiveApi ? (
+              <input 
+                type="password"
+                placeholder="Enter Massive.com API Key"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+              />
+            ) : (
+              <p className="text-xs text-slate-500 h-[38px] flex items-center">
+                Currently using local deterministic mock data for testing.
+              </p>
+            )}
+          </div>
           <button 
             onClick={runSimulation}
-            disabled={loading}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-md disabled:opacity-50"
+            disabled={loading || (useMassiveApi && !apiKey)}
+            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded disabled:opacity-50 transition-colors whitespace-nowrap h-[38px]"
           >
             {loading ? 'Running Engine...' : 'Execute Campaign Scanner'}
           </button>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 font-mono text-sm shadow-xl">
-          <h2 className="text-indigo-400 font-bold mb-4 uppercase tracking-wider">Engine Execution Log</h2>
+          <h2 className="text-emerald-400 font-bold mb-4 uppercase tracking-wider">Engine Execution Log</h2>
           {log.length === 0 ? (
-            <div className="text-slate-600 italic">No output yet. Click execute to run the engine logic against mock data.</div>
+            <div className="text-slate-600 italic">No output yet. Click execute to run the engine logic.</div>
           ) : (
             <div className="space-y-2">
               {log.map((entry, idx) => (
-                <div key={idx} className={entry.startsWith('---') ? 'text-indigo-300 font-bold mt-4' : 'text-slate-300'}>
+                <div key={idx} className={entry.startsWith('---') ? 'text-emerald-300 font-bold mt-4' : entry.startsWith('Error:') ? 'text-red-400' : 'text-slate-300'}>
                   {entry}
                 </div>
               ))}
@@ -125,7 +162,7 @@ export default function Plan1() {
 
         {campaign && (
           <div className="mt-8 bg-slate-900 border border-slate-800 rounded-lg p-6">
-            <h2 className="text-emerald-400 font-bold mb-4 uppercase tracking-wider">D1 Campaign State Object</h2>
+            <h2 className="text-indigo-400 font-bold mb-4 uppercase tracking-wider">D1 Campaign State Object</h2>
             <pre className="text-xs text-slate-400 overflow-x-auto">
               {JSON.stringify(campaign, null, 2)}
             </pre>

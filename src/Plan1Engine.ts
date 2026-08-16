@@ -230,6 +230,89 @@ export function calculateRoll(currentCampaign: CampaignState, liveOptionChain: O
 }
 
 // ---------------------------------------------------------
+// Live Massive.com (formerly Polygon) Data Provider
+// ---------------------------------------------------------
+export class MassiveDataProvider implements DataProvider {
+  private apiKey: string;
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+  }
+
+  async fetchOptionChain(symbol: string): Promise<OptionChain> {
+    if (!this.apiKey) {
+      throw new Error('Massive.com API key is required');
+    }
+
+    // Usually, options chains are massive, so we hit the snapshot endpoint for the underlying.
+    // e.g., https://api.massive.com/v3/snapshot/options/{symbol}
+    const res = await fetch(`https://api.massive.com/v3/snapshot/options/${symbol}?apiKey=${this.apiKey}`);
+    
+    if (!res.ok) {
+      throw new Error(`Massive.com API Error: ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    
+    // Example logic to map Massive's snapshot data to our strictly typed engine
+    // We assume data.results contains an array of option contracts with nested greeks/quotes.
+    const contracts: OptionContract[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let spotPrice = 0; // The snapshot endpoint usually includes the underlying price as well
+
+    if (data.results && Array.isArray(data.results)) {
+      for (const item of data.results) {
+        // Parse the contract symbol (e.g. O:SPY260829P00450000) to get strike/expiration if not directly provided
+        // Or assume the API provides it cleanly:
+        const expirationDate = item.details?.expiration_date || '2099-01-01'; 
+        const type = item.details?.contract_type === 'call' ? 'call' : 'put';
+        const strike = item.details?.strike_price ? Math.floor(item.details.strike_price * 100) : 0;
+        
+        // Calculate DTE
+        const exp = new Date(expirationDate);
+        const dte = Math.max(0, Math.floor((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+
+        // Get live bid/ask from the quote object
+        const bid = item.day?.close ? Math.floor(item.day.close * 100) : (item.last_quote?.bid ? Math.floor(item.last_quote.bid * 100) : 0);
+        const ask = item.day?.close ? Math.floor(item.day.close * 100) : (item.last_quote?.ask ? Math.floor(item.last_quote.ask * 100) : 0);
+        
+        // Get Greeks
+        const delta = item.greeks?.delta || 0;
+
+        // Try to glean spot price from the underlying asset if provided in the payload
+        if (item.underlying_asset?.price) {
+          spotPrice = Math.floor(item.underlying_asset.price * 100);
+        }
+
+        if (strike > 0 && bid > 0 && ask > 0) {
+          contracts.push({
+            strike,
+            expiration: expirationDate,
+            type,
+            bid,
+            ask,
+            delta,
+            dte
+          });
+        }
+      }
+    }
+
+    if (spotPrice === 0) {
+      // Fallback if spot price wasn't in the option payload
+      spotPrice = 50000; // Mock fallback
+    }
+
+    return {
+      spotPrice,
+      contracts
+    };
+  }
+}
+
+// ---------------------------------------------------------
 // Mock Data Provider
 // ---------------------------------------------------------
 export class MockDataProvider implements DataProvider {
