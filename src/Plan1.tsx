@@ -12,8 +12,8 @@ export default function Plan1() {
   const [loading, setLoading] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [campaign, setCampaign] = useState<CampaignState | null>(null);
-  const [useMassiveApi, setUseMassiveApi] = useState(false);
-  const [apiKey, setApiKey] = useState('');
+  const [useMassiveApi, setUseMassiveApi] = useState(true);
+  const [apiKey, setApiKey] = useState('1c8wkfZf5H7W6ki4ExuZcB3uWZtmFdrt');
 
   const addLog = (msg: string) => {
     setLog(prev => [...prev, msg]);
